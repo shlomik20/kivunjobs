@@ -1,9 +1,8 @@
 // ======== הגדרות ========
-const SHEET_ID = "1pX951W-sau0RuKhhPxm1KZCCNcb-Fswxs2t64zpmGC4";
-const SHEET_GID = "0"; // אם פרסמת לשונית אחרת, עדכן/י את המספר
 const RECIPIENT_EMAIL = "efratw@m-lemaase.co.il";
 const SITE_URL = "https://shlomik20.github.io/kivunjobs/";
-// כתובת CSV פומבית (Publish to web)
+
+// CSV שפורסם ("פרסום לאינטרנט" → CSV)
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQvg671v_gMTRGnQ4hg1lyJvjUT6kgUZrnUWM_f7zZ7pMe-BklVsvLLLpwE9RT3g-6G4WzSiTnF-lEH/pub?gid=0&single=true&output=csv";
 // =========================
 
@@ -13,7 +12,9 @@ const JOB_COUNT  = document.getElementById("jobCount");
 const YEAR_EL    = document.getElementById("year");
 if (YEAR_EL) YEAR_EL.textContent = new Date().getFullYear();
 
-// אליאסים לשמות כותרות בעברית
+console.log("CSV mode:", CSV_URL);
+
+// אליאסים לשמות כותרות בעברית (גמיש לשינויים קטנים)
 const HEADER_ALIASES = {
   title:  ["כותרת המשרה","כותרת","שם משרה","שם המשרה"],
   desc:   ["תיאור המשרה","תיאור","תיאור תמציתי","תאור","תאור המשרה"],
@@ -24,8 +25,7 @@ const HEADER_ALIASES = {
 
 // ===== CSV Parser קטן ועמיד לציטוטים/פסיקים/שורות חדשות =====
 function parseCSV(str){
-  // הסרת BOM אם קיים
-  if (str.charCodeAt(0) === 0xFEFF) str = str.slice(1);
+  if (str.charCodeAt(0) === 0xFEFF) str = str.slice(1); // הסרת BOM אם קיים
   const rows = [];
   let cur = "", row = [], inQuotes = false;
 
@@ -38,31 +38,23 @@ function parseCSV(str){
     }else{
       if (ch === '"'){ inQuotes = true; continue; }
       if (ch === ","){ row.push(cur); cur = ""; continue; }
-      if (ch === "\r"){
-        if (next === "\n") i++;
-        row.push(cur); rows.push(row); cur=""; row=[]; continue;
-      }
-      if (ch === "\n"){
-        row.push(cur); rows.push(row); cur=""; row=[]; continue;
-      }
+      if (ch === "\r"){ if (next === "\n") i++; row.push(cur); rows.push(row); cur=""; row=[]; continue; }
+      if (ch === "\n"){ row.push(cur); rows.push(row); cur=""; row=[]; continue; }
       cur += ch;
     }
   }
-  // אחרון
   row.push(cur); rows.push(row);
-  // סינון שורות ריקות לגמרי
   return rows.filter(r => r.some(c => String(c).trim() !== ""));
 }
 
-// נירמול טקסט כותרת
+// נירמול כותרות
 function normalizeHeader(s){
   return String(s||"")
     .replace(/[׳’`"]/g,"'")  // איחוד גרשיים
-    .replace(/\s+/g,"")      // הסרת רווחים
+    .replace(/\s+/g,"")      // בלי רווחים
     .toLowerCase();
 }
 
-// מציאת אינדקס לפי אליאסים
 function aliasIndex(headers, variants){
   const norm = headers.map(normalizeHeader);
   const vv = variants.map(normalizeHeader);
@@ -85,7 +77,6 @@ function mapHeaderIndexes(headers){
 // עזרי טקסט
 const onlyText = s => String(s ?? "").trim();
 
-// ===== טעינת המשרות מה-CSV =====
 async function loadJobs(){
   try{
     const res = await fetch(CSV_URL, { cache: "no-store" });
@@ -98,7 +89,6 @@ async function loadJobs(){
     const headers = rows[0].map(h => onlyText(h));
     const idx = mapHeaderIndexes(headers);
 
-    // בדיקת שדות חובה
     if (idx.title === -1) throw new Error("MISSING_TITLE_HEADER");
 
     const jobs = [];
@@ -128,7 +118,7 @@ async function loadJobs(){
     console.error("Load error:", err);
     let hint = `לא הצלחתי לטעון CSV.
 1) ודא שבחרת: קובץ → "פרסום לאינטרנט" → לשונית נכונה → CSV → פרסם.
-2) אם פרסמת לשונית אחרת, עדכן את SHEET_GID ב-app.js.
+2) אם פרסמת לשונית אחרת, עדכן את ה־gid בקישור ה־CSV.
 3) ודא ששורת הכותרות היא הראשונה: "כותרת המשרה, תיאור המשרה, דרישות המשרה, הערות נוספות, מספר משרה".`;
     if (err.message === "MISSING_TITLE_HEADER"){
       hint = `כותרת המשרה לא זוהתה בכותרות ה-CSV. ודא שאחת מהכותרות היא: ${HEADER_ALIASES.title.join(" / ")}`;
