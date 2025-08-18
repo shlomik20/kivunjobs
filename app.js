@@ -17,9 +17,9 @@ const GVIZ_URL =
 
 // וריאציות שמות כותרות (אליאסים)
 const HEADER_ALIASES = {
-  title:  ["כותרת המשרה","כותרת","שם משרה","שם המשרה"],
-  desc:   ["תיאור המשרה","תיאור","תאור המשרה","תאור"],
-  req:    ["דרישות המשרה","דרישות","כישורים","כישורים נדרשים"],
+  title:  ["כותרת המשרה","כותרת","שם משרה","שם המשרה","כותרת המישרה"],
+  desc:   ["תיאור המשרה","תיאור","תאור המשרה","תאור","תיאור תמציתי","תיאור קצר"],
+  req:    ["דרישות המשרה","דרישות","כישורים","כישורים נדרשים","תיאור מלא","תיאור המלא","תאור מלא"],
   notes:  ["הערות נוספות","הערות נוספות במידה ויש","הערות"],
   // גרש רגיל ' וגם הגרש העברי ׳ + וריאציות בלי רווחים
   jobId:  ["מס' משרה","מס׳ משרה","מספר משרה","מספר המשרה","מספרמשרה","מספרהמשרה","מס משרה"]
@@ -29,13 +29,13 @@ const HEADER_ALIASES = {
 function normalizeHeader(s){
   if(!s) return "";
   return String(s)
-    .replace(/[׳’`"]/g,"'")      // איחוד גרשיים
-    .replace(/\s+/g,"")          // הסרת רווחים
-    .replace(/[^\p{L}\p{N}]/gu,"") // אותיות/ספרות בלבד
+    .replace(/[׳’`"]/g,"'")       // איחוד גרשיים
+    .replace(/\s+/g,"")           // הסרת רווחים
+    .replace(/[^\p{L}\p{N}]/gu,"")// אותיות/ספרות בלבד
     .toLowerCase();
 }
 
-// חיפוש ע模模模模模模模模模模模模模模模模模模模
+// חיפוש ע"פ אליאסים (שווה/מכיל אחרי נורמליזציה)
 function fuzzyIndex(cols, variants){
   const normVars = variants.map(v => normalizeHeader(v));
   for (let i=0;i<cols.length;i++){
@@ -83,7 +83,7 @@ async function loadJobs(){
     let idx = mapHeaderIndexes(cols);
 
     // 2) Fallback: כותרות כתובות בשורה הראשונה של הנתונים
-    if ((!idx.title || !idx.jobId) && rows.length){
+    if ((!idx.title || idx.title === undefined) && rows.length){
       const headerCandidates = (rows[0].c || []).map(rawCellVal);
       const altIdx = mapHeaderIndexes(headerCandidates);
       const found  = Object.values(altIdx).filter(v => v !== undefined).length;
@@ -94,27 +94,38 @@ async function loadJobs(){
       }
     }
 
-    if (!idx.title || !idx.jobId) throw new Error("MISSING_HEADERS");
+    // גם אם אין jobId — נמשיך עם מזהים זמניים
+    if (!idx.title) throw new Error("MISSING_HEADERS");
+
+    const usingDerivedIds = (idx.jobId === undefined);
 
     // בניית אובייקטי משרה
     const jobs = [];
-    for (const r of rows){
-      const c     = r.c || [];
+    for (let i=0;i<rows.length;i++){
+      const r = rows[i];
+      const c = r.c || [];
+
       const title = rawCellVal(c[idx.title]);
-      const jobId = rawCellVal(c[idx.jobId]);
-      if(!title || !jobId) continue;
+      if(!title) continue;
+
+      // נסה לקרוא מזהה מהמטריצה; אם אין—נייצר זמני
+      let jobId = idx.jobId !== undefined ? rawCellVal(c[idx.jobId]) : "";
+      if (!jobId) jobId = String(1001 + i); // מזהה זמני יציב לפי מיקום שורה
 
       jobs.push({
         title,
-        desc:  rawCellVal(c[idx.desc]),
-        req:   rawCellVal(c[idx.req]),
-        notes: rawCellVal(c[idx.notes]),
-        jobId
+        desc:  idx.desc  !== undefined ? rawCellVal(c[idx.desc])  : "",
+        req:   idx.req   !== undefined ? rawCellVal(c[idx.req])   : "",
+        notes: idx.notes !== undefined ? rawCellVal(c[idx.notes]) : "",
+        jobId,
+        _derived: (idx.jobId === undefined) // סימון פנימי
       });
     }
 
-    // מיון לפי מס' משרה (טקסטואלי; אפשר להמיר למספר אם תרצה)
-    jobs.sort((a,b) => (b.jobId||"").localeCompare(a.jobId||"", "he"));
+    // מיון: אם יש מזהים אמיתיים — מיין לפיהם; אחרת השאר סדר מקורי
+    if (!usingDerivedIds){
+      jobs.sort((a,b) => (b.jobId||"").localeCompare(a.jobId||"", "he"));
+    }
 
     if (JOB_COUNT) JOB_COUNT.textContent = String(jobs.length);
     JOBS_GRID.innerHTML = jobs.map(card).join("");
@@ -126,8 +137,9 @@ async function loadJobs(){
 2) שה־gid נכון (פתח את הלשונית והעתק את המספר אחרי gid= ב־URL).
 3) שורת הכותרות היא הראשונה בטאב (ללא תאים ממוזגים/שורות ריקות מעליה).`;
     if (err.message === "MISSING_HEADERS") {
-      hint = `כותרות לא זוהו. ודא שהשמות (או וריאציות) קיימים:
-"כותרת המשרה", "תיאור המשרה", "דרישות המשרה", "הערות נוספות", "מס' משרה/מס׳ משרה".`;
+      hint = `כותרות לא זוהו. ודא שלפחות אחת מאלה קיימת לשם המשרה:
+["כותרת המשרה","כותרת","שם משרה","שם המשרה"].
+מומלץ גם להוסיף עמודה "מס' משרה" (למספר ייחודי לכל משרה).`;
     }
     JOBS_GRID.innerHTML = `
       <article class="job-card">
@@ -176,7 +188,7 @@ function card(job){
       <div class="job-actions">
         <a class="btn" href="${mailto}">שלח/י קו״ח</a>
         <a class="btn-wa" href="${shareWaJob}" target="_blank" rel="noopener">
-          <svg aria-hidden="true" viewBox="0 0 32 32" class="wa-ico"><path d="M19.11 17.19c-.28-.14-1.63-.8-1.88-.89-.25-.09-.43-.14-.62.14-.19.28-.72.89-.88 1.07-.16.19-.33.21-.61.07-.28-.14-1.17-.43-2.24-1.38-.83-.74-1.39-1.66-1.55-1.94-.16-.28-.02-.43.12-.57.12-.12.28-.33.41-.49.14-.16.19-.28.28-.47.09-.19.05-.35-.02-.49-.07-.14-.62-1.5-.85-2.06-.22-.53-.45-.46-.62-.46h-.53c-.19 0-.49.07-.75.35-.26.28-.99.97-.99 2.36 0 1.39 1.02 2.74 1.17 2.93.14.19 2.01 3.07 4.87 4.3.68.29 1.21.46 1.63.59.68.22 1.3.19 1.79.11.55-.08 1.63-.66 1.86-1.29.23-.63.23-1.17.16-1.29-.07-.12-.26-.19-.54-.33zM16 3C9.37 3 4 8.37 4 15c0 2.12.56 4.18 1.62 6.01L4 29l8.17-1.55C14.07 28.46 15.02 28.6 16 28.6 22.63 28.6 28 23.23 28 16.6S22.63 3 16 3zm0 23.6c-.86 0-1.7-.14-2.49-.41l-.18-.06-4.87.93.93-4.75-.06-.18C8.07 21 7.4 18.83 7.4 16.6 7.4 10.96 11.96 6.4 16.6 6.4s9.2 4.56 9.2 10.2-4.56 10-10 10z"/></svg>
+          <svg aria-hidden="true" viewBox="0 0 32 32" class="wa-ico"><path d="M19.11 17.19c-.28-.14-1.63-.8-1.88-.89-.25-.09-.43-.14-.62.14-.19.28-.72.89-.88 1.07-.16.19-.33.21-.61.07-.28-.14-1.17-.43-2.24-1.38-.83-.74-1.39-1.66-1.55-1.94-.16-.28-.02-.43.12-.57.12-.12.28-.33.41-.49.14-.16.19-.28.28-.47.09-.19.05-.35-.02-.49-.07-.14-.62-1.5-.85-2.06-.22-.53-.45-.46-.62-.46h-.53c-.19 0-.49.07-.75.35-.26.28-.99.97-.99 2.36 0 1.39 1.02 2.74 1.17 2.93.14.19 2.01 3.07 4.87 4.3.68.29 1.21.46 1.63.59.68.22 1.3.19 1.79.11.55-.08 1.63-.66 1.86-1.29.23-.63.23-1.17.16-1.29-.07-.12-.26-.19-.54-.33zM16 3C9.37 3 4 8.37 4 15c0 2.12.56 4.18 1.62 6.01L4 29ל8.17-1.55C14.07 28.46 15.02 28.6 16 28.6 22.63 28.6 28 23.23 28 16.6S22.63 3 16 3zm0 23.6c-.86 0-1.7-.14-2.49-.41l-.18-.06-4.87.93.93-4.75-.06-.18C8.07 21 7.4 18.83 7.4 16.6 7.4 10.96 11.96 6.4 16.6 6.4s9.2 4.56 9.2 10.2-4.56 10-10 10z"/></svg>
           שתפו משרה
         </a>
       </div>
