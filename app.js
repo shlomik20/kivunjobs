@@ -2,7 +2,7 @@
 const RECIPIENT_EMAIL = "efratw@m-lemaase.co.il";
 const SITE_URL = "https://shlomik20.github.io/kivunjobs/";
 
-// CSV שפורסם ("פרסום לאינטרנט" → CSV)
+// CSV פומבי ("פרסום לאינטרנט" → CSV)
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQvg671v_gMTRGnQ4hg1lyJvjUT6kgUZrnUWM_f7zZ7pMe-BklVsvLLLpwE9RT3g-6G4WzSiTnF-lEH/pub?gid=0&single=true&output=csv";
 // =========================
 
@@ -11,8 +11,6 @@ const JOBS_GRID  = document.getElementById("jobsGrid");
 const JOB_COUNT  = document.getElementById("jobCount");
 const YEAR_EL    = document.getElementById("year");
 if (YEAR_EL) YEAR_EL.textContent = new Date().getFullYear();
-
-console.log("CSV mode:", CSV_URL);
 
 // אליאסים לשמות כותרות בעברית (גמיש לשינויים קטנים)
 const HEADER_ALIASES = {
@@ -77,7 +75,13 @@ function mapHeaderIndexes(headers){
 // עזרי טקסט
 const onlyText = s => String(s ?? "").trim();
 
+// ===== טעינה =====
 async function loadJobs(){
+  // הודעת טעינה (אם לא קיימת כבר)
+  if (!JOBS_GRID.innerHTML.trim()){
+    JOBS_GRID.innerHTML = `<div class="loading">טוען משרות…</div>`;
+  }
+
   try{
     const res = await fetch(CSV_URL, { cache: "no-store" });
     if (!res.ok) throw new Error("CSV_FETCH_FAILED");
@@ -88,9 +92,9 @@ async function loadJobs(){
     // כותרות
     const headers = rows[0].map(h => onlyText(h));
     const idx = mapHeaderIndexes(headers);
-
     if (idx.title === -1) throw new Error("MISSING_TITLE_HEADER");
 
+    // שורות נתונים
     const jobs = [];
     for (let i=1;i<rows.length;i++){
       const r = rows[i];
@@ -149,9 +153,8 @@ function card(job){
   ].join("\n"));
   const mailto = `mailto:${RECIPIENT_EMAIL}?subject=${subject}&body=${body}`;
 
-  const shareTextJob =
-    `רציתי לעניין אותך במשרה שראיתי אצל כיוון – מחוז מרכז:\n` +
-    `${job.title}\nמס' משרה: ${job.jobId}\nפרטים מלאים והגשת קו״ח בדף המשרות:\n${SITE_URL}`;
+  // מיקרו־קופי מדויק לשיתוף בוואטסאפ (#9)
+  const shareTextJob = `מצאתי משרה שנראית לי רלוונטית עבורך במשרות של כיוון: ${job.title}\n${SITE_URL}`;
   const shareWaJob = `https://wa.me/?text=${encodeURIComponent(shareTextJob)}`;
 
   return `
@@ -162,9 +165,9 @@ function card(job){
       <div class="card-body">
         <h3 class="job-title">${escapeHtml(job.title)}</h3>
         <dl class="job-fields">
-          ${section("תיאור", job.desc)}
-          ${section("דרישות", job.req)}
-          ${job.notes ? section("הערות", job.notes) : ""}
+          ${section("תיאור המשרה", job.desc)}
+          ${section("דרישות המשרה", job.req)}
+          ${job.notes ? section("הערות נוספות", job.notes) : ""}
         </dl>
       </div>
       <div class="job-actions">
