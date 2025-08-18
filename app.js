@@ -4,7 +4,7 @@ const SHEET_GID = "0"; // אם פרסמת לשונית אחרת, עדכן/י א�
 const RECIPIENT_EMAIL = "efratw@m-lemaase.co.il";
 const SITE_URL = "https://shlomik20.github.io/kivunjobs/";
 // כתובת CSV פומבית (Publish to web)
-const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/pub?gid=${SHEET_GID}&single=true&output=csv`;
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQvg671v_gMTRGnQ4hg1lyJvjUT6kgUZrnUWM_f7zZ7pMe-BklVsvLLLpwE9RT3g-6G4WzSiTnF-lEH/pub?gid=0&single=true&output=csv";
 // =========================
 
 // אלמנטים בעמוד
