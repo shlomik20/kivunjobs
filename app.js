@@ -32,6 +32,8 @@ async function loadJobs(){
     const json = JSON.parse(text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1));
     const cols = json.table.cols.map(c => (c.label || "").trim());
     const rows = json.table.rows;
+console.log("GViz columns:", cols, "rows:", rows?.length);
+
 
     const idx = mapHeaderIndexes(cols);
     if (!idx.title || !idx.jobId) throw new Error("MISSING_HEADERS");
