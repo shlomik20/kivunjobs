@@ -5,66 +5,129 @@ const RECIPIENT_EMAIL = "efratw@m-lemaase.co.il";
 const SITE_URL = "https://shlomik20.github.io/kivunjobs/";
 // =========================
 
-const JOBS_GRID = document.getElementById("jobsGrid");
-const JOB_COUNT = document.getElementById("jobCount");
-const YEAR_EL = document.getElementById("year");
+// אלמנטים בעמוד
+const JOBS_GRID  = document.getElementById("jobsGrid");
+const JOB_COUNT  = document.getElementById("jobCount");
+const YEAR_EL    = document.getElementById("year");
 if (YEAR_EL) YEAR_EL.textContent = new Date().getFullYear();
 
+// כתובת GViz
 const GVIZ_URL =
   `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${SHEET_GID}`;
 
-// וריאציות שמות כותרות בעברית
+// וריאציות שמות כותרות (אליאסים)
 const HEADER_ALIASES = {
   title:  ["כותרת המשרה","כותרת","שם משרה","שם המשרה"],
   desc:   ["תיאור המשרה","תיאור","תאור המשרה","תאור"],
   req:    ["דרישות המשרה","דרישות","כישורים","כישורים נדרשים"],
   notes:  ["הערות נוספות","הערות נוספות במידה ויש","הערות"],
-  // שים לב לגרשיים שונים: ' , ׳  (U+05F3), וגם בלי רווחים
+  // גרש רגיל ' וגם הגרש העברי ׳ + וריאציות בלי רווחים
   jobId:  ["מס' משרה","מס׳ משרה","מספר משרה","מספר המשרה","מספרמשרה","מספרהמשרה","מס משרה"]
 };
 
+// נורמליזציה רכה של טקסט כותרת
+function normalizeHeader(s){
+  if(!s) return "";
+  return String(s)
+    .replace(/[׳’`"]/g,"'")      // איחוד גרשיים
+    .replace(/\s+/g,"")          // הסרת רווחים
+    .replace(/[^\p{L}\p{N}]/gu,"") // אותיות/ספרות בלבד
+    .toLowerCase();
+}
+
+// חיפוש ע模模模模模模模模模模模模模模模模模模模
+function fuzzyIndex(cols, variants){
+  const normVars = variants.map(v => normalizeHeader(v));
+  for (let i=0;i<cols.length;i++){
+    const n = normalizeHeader(cols[i]);
+    if (normVars.some(v => n === v || n.includes(v))) return i;
+  }
+  return undefined;
+}
+
+function mapHeaderIndexes(cols){
+  return {
+    title: fuzzyIndex(cols, HEADER_ALIASES.title),
+    desc:  fuzzyIndex(cols, HEADER_ALIASES.desc),
+    req:   fuzzyIndex(cols, HEADER_ALIASES.req),
+    notes: fuzzyIndex(cols, HEADER_ALIASES.notes),
+    jobId: fuzzyIndex(cols, HEADER_ALIASES.jobId)
+  };
+}
+
+// שליפת ערך גולמי מתא
+function rawCellVal(cell){
+  if(!cell) return "";
+  if (typeof cell.v === "string") return cell.v.trim();
+  if (typeof cell.v === "number") return String(cell.v);
+  return cell.v ?? "";
+}
+
 async function loadJobs(){
   try{
-    const res = await fetch(GVIZ_URL, { cache: "no-store" });
+    const res  = await fetch(GVIZ_URL, { cache: "no-store" });
     const text = await res.text();
+
+    // אם קיבלנו HTML ולא setResponse – כנראה הרשאות/גיד
     if (!text.includes("google.visualization.Query.setResponse")) {
       throw new Error("NO_ACCESS_OR_BAD_GID");
     }
-    const json = JSON.parse(text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1));
-    const cols = json.table.cols.map(c => (c.label || "").trim());
-    const rows = json.table.rows;
-console.log("GViz columns:", cols, "rows:", rows?.length);
 
+    const json  = JSON.parse(text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1));
+    const cols  = (json.table.cols || []).map(c => (c.label || "").trim());
+    let rows    = json.table.rows || [];
 
-    const idx = mapHeaderIndexes(cols);
+    console.log("GViz columns:", cols, "rows:", rows.length);
+
+    // 1) ניסיון רגיל: כותרות מתוך labels
+    let idx = mapHeaderIndexes(cols);
+
+    // 2) Fallback: כותרות כתובות בשורה הראשונה של הנתונים
+    if ((!idx.title || !idx.jobId) && rows.length){
+      const headerCandidates = (rows[0].c || []).map(rawCellVal);
+      const altIdx = mapHeaderIndexes(headerCandidates);
+      const found  = Object.values(altIdx).filter(v => v !== undefined).length;
+      if (found >= 2){
+        idx  = altIdx;
+        rows = rows.slice(1); // דילוג על שורת הכותרות
+        console.log("Using first-row headers:", headerCandidates);
+      }
+    }
+
     if (!idx.title || !idx.jobId) throw new Error("MISSING_HEADERS");
 
+    // בניית אובייקטי משרה
     const jobs = [];
     for (const r of rows){
-      const c = r.c || [];
-      const title = val(c[idx.title]);
-      const jobId = val(c[idx.jobId]);
+      const c     = r.c || [];
+      const title = rawCellVal(c[idx.title]);
+      const jobId = rawCellVal(c[idx.jobId]);
       if(!title || !jobId) continue;
+
       jobs.push({
         title,
-        desc:  val(c[idx.desc]),
-        req:   val(c[idx.req]),
-        notes: val(c[idx.notes]),
+        desc:  rawCellVal(c[idx.desc]),
+        req:   rawCellVal(c[idx.req]),
+        notes: rawCellVal(c[idx.notes]),
         jobId
       });
     }
 
+    // מיון לפי מס' משרה (טקסטואלי; אפשר להמיר למספר אם תרצה)
     jobs.sort((a,b) => (b.jobId||"").localeCompare(a.jobId||"", "he"));
+
     if (JOB_COUNT) JOB_COUNT.textContent = String(jobs.length);
-    JOBS_GRID.innerHTML = jobs.map(job => card(job)).join("");
+    JOBS_GRID.innerHTML = jobs.map(card).join("");
+
   } catch(err){
     console.error("Load error:", err);
     let hint = `בדוק:
-1) שיתוף: Anyone with the link → Viewer.
-2) שה־gid נכון (פתח את הלשונית והעתק את המספר אחרי gid= ב־URL).`;
+1) שיתוף הגיליון: Anyone with the link → Viewer.
+2) שה־gid נכון (פתח את הלשונית והעתק את המספר אחרי gid= ב־URL).
+3) שורת הכותרות היא הראשונה בטאב (ללא תאים ממוזגים/שורות ריקות מעליה).`;
     if (err.message === "MISSING_HEADERS") {
-      hint = `וודא שכותרות השורה הראשונה תואמות (או וריאציות):
-"כותרת המשרה", "תיאור המשרה", "דרישות המשרה", "הערות נוספות", "מס' משרה".`;
+      hint = `כותרות לא זוהו. ודא שהשמות (או וריאציות) קיימים:
+"כותרת המשרה", "תיאור המשרה", "דרישות המשרה", "הערות נוספות", "מס' משרה/מס׳ משרה".`;
     }
     JOBS_GRID.innerHTML = `
       <article class="job-card">
@@ -76,30 +139,7 @@ console.log("GViz columns:", cols, "rows:", rows?.length);
   }
 }
 
-function mapHeaderIndexes(cols){
-  const findIndex = (aliases) => {
-    for (const a of aliases) {
-      const i = cols.findIndex(h => h === a);
-      if (i !== -1) return i;
-    }
-    return undefined;
-  };
-  return {
-    title: findIndex(HEADER_ALIASES.title),
-    desc:  findIndex(HEADER_ALIASES.desc),
-    req:   findIndex(HEADER_ALIASES.req),
-    notes: findIndex(HEADER_ALIASES.notes),
-    jobId: findIndex(HEADER_ALIASES.jobId)
-  };
-}
-
-function val(cell){
-  if(!cell) return "";
-  if(typeof cell.v === "string") return cell.v.trim();
-  if(typeof cell.v === "number") return String(cell.v);
-  return cell.v ?? "";
-}
-
+// רנדר כרטיס
 function card(job){
   const subject = encodeURIComponent(`קורות חיים – משרה ${job.jobId}`);
   const body = encodeURIComponent([
@@ -115,7 +155,6 @@ function card(job){
   ].join("\n"));
   const mailto = `mailto:${RECIPIENT_EMAIL}?subject=${subject}&body=${body}`;
 
-  // שיתוף פר-משרה
   const shareTextJob =
     `רציתי לעניין אותך במשרה שראיתי אצל כיוון – מחוז מרכז:\n` +
     `${job.title}\nמס' משרה: ${job.jobId}\nפרטים מלאים והגשת קו״ח בדף המשרות:\n${SITE_URL}`;
@@ -145,12 +184,16 @@ function card(job){
   `;
 }
 
+// עזרי HTML
 function section(label, content){
   if(!content) return "";
   return `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(content)}</dd></div>`;
 }
 function escapeHtml(str){
-  return (str ?? "").replace(/[&<>"']/g, s => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[s]));
+  return (str ?? "").replace(/[&<>"']/g, s => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  }[s]));
 }
 
+// הפעלה
 loadJobs();
