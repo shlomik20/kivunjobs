@@ -1,8 +1,10 @@
 // ======== הגדרות ========
 const SHEET_ID = "1pX951W-sau0RuKhhPxm1KZCCNcb-Fswxs2t64zpmGC4";
-const SHEET_GID = "0"; // עדכן אם ה-gid בלשונית שונה
+const SHEET_GID = "0"; // אם פרסמת לשונית אחרת, עדכן/י את המספר
 const RECIPIENT_EMAIL = "efratw@m-lemaase.co.il";
 const SITE_URL = "https://shlomik20.github.io/kivunjobs/";
+// כתובת CSV פומבית (Publish to web)
+const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/pub?gid=${SHEET_GID}&single=true&output=csv`;
 // =========================
 
 // אלמנטים בעמוד
@@ -11,171 +13,111 @@ const JOB_COUNT  = document.getElementById("jobCount");
 const YEAR_EL    = document.getElementById("year");
 if (YEAR_EL) YEAR_EL.textContent = new Date().getFullYear();
 
-// כתובת GViz
-const GVIZ_URL =
-  `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${SHEET_GID}`;
-
-// אליאסים (עדיין נשארים כשלב ראשון)
+// אליאסים לשמות כותרות בעברית
 const HEADER_ALIASES = {
-  title:  ["כותרת המשרה","כותרת","שם משרה","שם המשרה","כותרת המישרה"],
-  desc:   ["תיאור המשרה","תיאור","תאור המשרה","תאור","תיאור תמציתי","תיאור קצר"],
-  req:    ["דרישות המשרה","דרישות","כישורים","כישורים נדרשים","תיאור מלא","תיאור המלא","תאור מלא"],
+  title:  ["כותרת המשרה","כותרת","שם משרה","שם המשרה"],
+  desc:   ["תיאור המשרה","תיאור","תיאור תמציתי","תאור","תאור המשרה"],
+  req:    ["דרישות המשרה","דרישות","כישורים","כישורים נדרשים","תיאור מלא","התיאור המלא"],
   notes:  ["הערות נוספות","הערות נוספות במידה ויש","הערות"],
-  jobId:  ["מס' משרה","מס׳ משרה","מספר משרה","מספר המשרה","מספרמשרה","מספרהמשרה","מס משרה"]
+  jobId:  ["מספר משרה","מס' משרה","מס׳ משרה","מספר המשרה","מס משרה"]
 };
 
-// ---------- עוזרים ----------
+// ===== CSV Parser קטן ועמיד לציטוטים/פסיקים/שורות חדשות =====
+function parseCSV(str){
+  // הסרת BOM אם קיים
+  if (str.charCodeAt(0) === 0xFEFF) str = str.slice(1);
+  const rows = [];
+  let cur = "", row = [], inQuotes = false;
+
+  for (let i=0;i<str.length;i++){
+    const ch = str[i], next = str[i+1];
+    if (inQuotes){
+      if (ch === '"' && next === '"'){ cur += '"'; i++; continue; }
+      if (ch === '"'){ inQuotes = false; continue; }
+      cur += ch;
+    }else{
+      if (ch === '"'){ inQuotes = true; continue; }
+      if (ch === ","){ row.push(cur); cur = ""; continue; }
+      if (ch === "\r"){
+        if (next === "\n") i++;
+        row.push(cur); rows.push(row); cur=""; row=[]; continue;
+      }
+      if (ch === "\n"){
+        row.push(cur); rows.push(row); cur=""; row=[]; continue;
+      }
+      cur += ch;
+    }
+  }
+  // אחרון
+  row.push(cur); rows.push(row);
+  // סינון שורות ריקות לגמרי
+  return rows.filter(r => r.some(c => String(c).trim() !== ""));
+}
+
+// נירמול טקסט כותרת
 function normalizeHeader(s){
-  if(!s) return "";
-  return String(s)
-    .replace(/[׳’`"]/g,"'")       // איחוד גרשיים
-    .replace(/\s+/g,"")           // הסרת רווחים
-    .replace(/[^\p{L}\p{N}]/gu,"")// אותיות/ספרות בלבד
+  return String(s||"")
+    .replace(/[׳’`"]/g,"'")  // איחוד גרשיים
+    .replace(/\s+/g,"")      // הסרת רווחים
     .toLowerCase();
 }
-function fuzzyIndex(cols, variants){
-  const normVars = variants.map(v => normalizeHeader(v));
-  for (let i=0;i<cols.length;i++){
-    const n = normalizeHeader(cols[i]);
-    if (normVars.some(v => n === v || n.includes(v))) return i;
+
+// מציאת אינדקס לפי אליאסים
+function aliasIndex(headers, variants){
+  const norm = headers.map(normalizeHeader);
+  const vv = variants.map(normalizeHeader);
+  for (let i=0;i<norm.length;i++){
+    if (vv.includes(norm[i])) return i;
   }
-  return undefined;
+  return -1;
 }
-function mapHeaderIndexes(cols){
+
+function mapHeaderIndexes(headers){
   return {
-    title: fuzzyIndex(cols, HEADER_ALIASES.title),
-    desc:  fuzzyIndex(cols, HEADER_ALIASES.desc),
-    req:   fuzzyIndex(cols, HEADER_ALIASES.req),
-    notes: fuzzyIndex(cols, HEADER_ALIASES.notes),
-    jobId: fuzzyIndex(cols, HEADER_ALIASES.jobId)
-  };
-}
-function rawCellVal(cell){
-  if(!cell) return "";
-  if (typeof cell.v === "string") return cell.v.trim();
-  if (typeof cell.v === "number") return String(cell.v);
-  return cell.v ?? "";
-}
-function onlyText(s){ return (s||"").replace(/\s+/g," ").trim(); }
-function isMostlyDigits(s){ return /^[0-9]+$/.test(String(s||"").trim()); }
-
-// זיהוי חכם לפי תוכן (כשאין כותרות אמינות)
-function inferIndexesFromData(rows){
-  // נהפוך את הטבלה למערך של שורות טקסט
-  const data = rows.map(r => (r.c || []).map(rawCellVal));
-  const colsCount = Math.max(...data.map(r => r.length), 0);
-  if (!colsCount) return {};
-
-  // נחשב לכל עמודה: יחס ספרות, אורך ממוצע, מספר ערכים לא-ריקים
-  const stats = [];
-  for (let c=0;c<colsCount;c++){
-    let digits=0, nonEmpty=0, totalLen=0;
-    for (const row of data){
-      const v = (row[c]||"").toString().trim();
-      if (v !== "") { nonEmpty++; totalLen += v.length; }
-      if (isMostlyDigits(v)) digits++;
-    }
-    const ratioDigits = nonEmpty ? digits/nonEmpty : 0;
-    const avgLen = nonEmpty ? totalLen/nonEmpty : 0;
-    stats.push({ c, ratioDigits, avgLen, nonEmpty });
-  }
-
-  // jobId: העמודה עם יחס ספרות הגבוה ביותר (>= 0.6) ומספיקה לא-ריקה
-  const byDigits = [...stats].sort((a,b)=>b.ratioDigits-a.ratioDigits);
-  let jobIdIdx = undefined;
-  if (byDigits[0] && byDigits[0].ratioDigits >= 0.6 && byDigits[0].nonEmpty > 0){
-    jobIdIdx = byDigits[0].c;
-  }
-
-  // title: העמודה עם הטקסט הארוך/עשיר ביותר שלא זהה ל-jobId
-  const textCols = stats.filter(s => s.c !== jobIdIdx);
-  const byLen = [...textCols].sort((a,b)=>b.avgLen-a.avgLen);
-  let titleIdx = byLen[0]?.c;
-
-  // desc/req/notes: נשארות לפי אורך ממוצע יורד
-  const rest = byLen.slice(1).map(s=>s.c);
-
-  // ניסיון הגיוני: אם יש 5 עמודות — סדר טיפוסי 0..4
-  // אך אם ההיסק מעלה שונה — נעדיף את החישוב.
-  return {
-    title: titleIdx,
-    desc:  rest[0],
-    req:   rest[1],
-    notes: rest[2],
-    jobId: jobIdIdx
+    title: aliasIndex(headers, HEADER_ALIASES.title),
+    desc:  aliasIndex(headers, HEADER_ALIASES.desc),
+    req:   aliasIndex(headers, HEADER_ALIASES.req),
+    notes: aliasIndex(headers, HEADER_ALIASES.notes),
+    jobId: aliasIndex(headers, HEADER_ALIASES.jobId),
   };
 }
 
-// ---------- לוגיקה ראשית ----------
+// עזרי טקסט
+const onlyText = s => String(s ?? "").trim();
+
+// ===== טעינת המשרות מה-CSV =====
 async function loadJobs(){
   try{
-    const res  = await fetch(GVIZ_URL, { cache: "no-store" });
+    const res = await fetch(CSV_URL, { cache: "no-store" });
+    if (!res.ok) throw new Error("CSV_FETCH_FAILED");
     const text = await res.text();
+    const rows = parseCSV(text);
+    if (!rows.length) throw new Error("CSV_EMPTY");
 
-    if (!text.includes("google.visualization.Query.setResponse")) {
-      throw new Error("NO_ACCESS_OR_BAD_GID");
-    }
+    // כותרות
+    const headers = rows[0].map(h => onlyText(h));
+    const idx = mapHeaderIndexes(headers);
 
-    const json  = JSON.parse(text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1));
-    const cols  = (json.table.cols || []).map(c => (c.label || "").trim());
-    let rows    = json.table.rows || [];
+    // בדיקת שדות חובה
+    if (idx.title === -1) throw new Error("MISSING_TITLE_HEADER");
 
-    console.log("GViz columns:", cols, "rows:", rows.length);
-
-    // 1) נסה לפי labels
-    let idx = mapHeaderIndexes(cols);
-
-    // 2) Fallback: שורת כותרות בתוך הנתונים
-    if ((!idx.title || idx.title === undefined) && rows.length){
-      const headerCandidates = (rows[0].c || []).map(rawCellVal);
-      const altIdx = mapHeaderIndexes(headerCandidates);
-      const found  = Object.values(altIdx).filter(v => v !== undefined).length;
-      if (found >= 2){
-        idx  = altIdx;
-        rows = rows.slice(1); // דילוג על שורת הכותרות
-        console.log("Using first-row headers:", headerCandidates);
-      }
-    }
-
-    // 3) Fallback אחרון: זיהוי לפי תוכן
-    let usingHeuristics = false;
-    if (!idx.title){
-      idx = inferIndexesFromData(rows);
-      usingHeuristics = true;
-      console.log("Heuristic index mapping:", idx);
-    }
-
-    if (!idx.title){
-      throw new Error("MISSING_HEADERS");
-    }
-
-    const usingDerivedIds = (idx.jobId === undefined);
-
-    // בניית רשימת המשרות
     const jobs = [];
-    for (let i=0;i<rows.length;i++){
+    for (let i=1;i<rows.length;i++){
       const r = rows[i];
-      const c = r.c || [];
-
-      const get = (k)=> (idx[k] !== undefined ? rawCellVal(c[idx[k]]) : "");
-      const title = onlyText(get("title"));
+      const title = onlyText(r[idx.title]);
       if (!title) continue;
 
-      let jobId = onlyText(get("jobId"));
-      if (!jobId) jobId = String(1001 + i); // מזהה זמני יציב לפי מיקום שורה
+      const jobId = idx.jobId !== -1 ? onlyText(r[idx.jobId]) : String(1000 + i);
+      const desc  = idx.desc  !== -1 ? onlyText(r[idx.desc])  : "";
+      const req   = idx.req   !== -1 ? onlyText(r[idx.req])   : "";
+      const notes = idx.notes !== -1 ? onlyText(r[idx.notes]) : "";
 
-      jobs.push({
-        title,
-        desc:  onlyText(get("desc")),
-        req:   onlyText(get("req")),
-        notes: onlyText(get("notes")),
-        jobId,
-        _derived: usingDerivedIds
-      });
+      jobs.push({ title, jobId, desc, req, notes });
     }
 
-    // מיון: אם יש מזהה אמיתי — מיין לפיו; אחרת השאר סדר מקורי
-    if (!usingDerivedIds){
+    // מיון (אם יש מספרי משרה אמיתיים)
+    const hasRealIds = idx.jobId !== -1 && jobs.every(j => j.jobId);
+    if (hasRealIds){
       jobs.sort((a,b) => (b.jobId||"").localeCompare(a.jobId||"", "he"));
     }
 
@@ -184,13 +126,12 @@ async function loadJobs(){
 
   } catch(err){
     console.error("Load error:", err);
-    let hint = `בדוק:
-1) שיתוף הגיליון: Anyone with the link → Viewer.
-2) שה־gid נכון (פתח את הלשונית והעתק את המספר אחרי gid= ב־URL).
-3) אין שורות ריקות/תאים ממוזגים מעל שורת הכותרות.
-4) אם עדיין לא עובד — אשר לי לעבור לגרסת CSV (Publish to web) חסינה.`;
-    if (err.message === "MISSING_HEADERS") {
-      hint = `לא זוהו כותרות אפילו אחרי ניסיונות. ודא שלפחות יש עמודות עם טקסט (לכותרת) ועמודה אחת מספרית (למס' משרה), או אפשר לעבור לגרסת CSV.`;
+    let hint = `לא הצלחתי לטעון CSV.
+1) ודא שבחרת: קובץ → "פרסום לאינטרנט" → לשונית נכונה → CSV → פרסם.
+2) אם פרסמת לשונית אחרת, עדכן את SHEET_GID ב-app.js.
+3) ודא ששורת הכותרות היא הראשונה: "כותרת המשרה, תיאור המשרה, דרישות המשרה, הערות נוספות, מספר משרה".`;
+    if (err.message === "MISSING_TITLE_HEADER"){
+      hint = `כותרת המשרה לא זוהתה בכותרות ה-CSV. ודא שאחת מהכותרות היא: ${HEADER_ALIASES.title.join(" / ")}`;
     }
     JOBS_GRID.innerHTML = `
       <article class="job-card">
@@ -202,7 +143,7 @@ async function loadJobs(){
   }
 }
 
-// ---------- תצוגת כרטיס ----------
+// ===== רנדר כרטיס =====
 function card(job){
   const subject = encodeURIComponent(`קורות חיים – משרה ${job.jobId}`);
   const body = encodeURIComponent([
@@ -247,7 +188,7 @@ function card(job){
   `;
 }
 
-// ---------- עזרי HTML ----------
+// ===== עזרי HTML =====
 function section(label, content){
   if(!content) return "";
   return `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(content)}</dd></div>`;
