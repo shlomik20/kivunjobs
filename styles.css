@@ -113,3 +113,50 @@ img{max-width:100%;height:auto}
 .btn-contact.outline{background:transparent;color:var(--accent);border:2px solid var(--accent)}
 .btn-contact svg{width:18px;height:18px;fill:currentColor}
 .site-footer p{margin:10px 0 24px}
+
+
+
+/* ===== ריכוך וצמצום הוורוד ===== */
+
+/* 1) ורוד רגוע יותר */
+:root{
+  --accent: #c2466d;   /* ורוד מרוכך */
+  --accent-2:#8d3653;  /* גוון כהה מתאים */
+}
+
+/* 2) כפתור קו״ח בצבע כהה (לא ורוד) — בלי לגעת בוואטסאפ */
+.job-actions .btn{
+  background: var(--ink);
+  color:#fff;
+}
+.job-actions .btn:hover{ background:#000; }
+
+/* 3) ה-Bar העליון בכל כרטיס — לבן ועדין במקום ורוד */
+.card-bar{
+  background:#fff;
+  color: var(--ink);
+  border-bottom:1px solid var(--border);
+}
+
+/* 4) תג מס' משרה — ורוד עדין על לבן */
+.badge{
+  background: #fbe7ed;   /* ורוד ממש בהיר */
+  color: var(--accent);
+}
+
+/* 5) פס העליון בבאנר יצירת קשר — דק ועדין יותר */
+.contact-topbar{
+  height: 3px;            /* היה 6px */
+  background: linear-gradient(90deg, #f3f4f6, #fbe7ed, #f3f4f6);
+}
+
+/* 6) כפתור Outline ניטרלי (אם משתמשים בו בעתיד) */
+.btn-outline{
+  color: var(--ink);
+  border-color: var(--ink);
+}
+.btn-outline:hover{
+  background: var(--ink);
+  color:#fff;
+}
+
