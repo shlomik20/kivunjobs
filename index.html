@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>משרות כיוון – מחוז מרכז | דרושים ועדכונים חיים</title>
-  <meta name="description" content="משרות פתוחות בכיוון – מחוז מרכז. מתעדכן כל הזמן. הגשת מועמדות בלחיצה ושיתוף לחבר/ה." />
+  <title>משרות כיוון – מחוז מרכז | דרושים</title>
+  <meta name="description" content="משרות פתוחות בכיוון – מחוז מרכז. מתעדכן כל הזמן. הגשת מועמדות בלחיצה" />
   <link rel="canonical" href="https://shlomik20.github.io/kivunjobs/" />
 
   <!-- Fonts -->
@@ -14,9 +14,9 @@
 
   <link rel="stylesheet" href="styles.css" />
 
-  <!-- Open Graph (ללא תמונת OG לפי בקשתך) -->
+  <!-- Open Graph (ללא תמונת OG בשלב זה) -->
   <meta property="og:title" content="משרות כיוון – מחוז מרכז" />
-  <meta property="og:description" content="משרות פתוחות ומתעדכנות. הגשת מועמדות בלחיצה ושיתוף לחבר/ה." />
+  <meta property="og:description" content="משרות פתוחות ומתעדכנות. הגשת מועמדות בלחיצה ושיתוף." />
   <meta property="og:type" content="website" />
 </head>
 <body>
@@ -26,7 +26,7 @@
       <img class="hero-banner" src="logo-kivun.jpg" alt="כיוון – מחוז מרכז (באנר לוגואים)" />
     </section>
 
-    <!-- כותרת + מונה (לא לחיץ) -->
+    <!-- כותרת + מונה -->
     <div class="topline">
       <h1>משרות כיוון – מחוז מרכז</h1>
       <div class="stats-chip" aria-live="polite">
@@ -34,16 +34,16 @@
         <span>משרות פתוחות</span>
       </div>
     </div>
-    <!-- תת־כותרת (מיקרו־קופי בראש הדף) -->
-    <p class="subtitle">משרות פתוחות בכיוון – מחוז מרכז. מתעדכן כל הזמן.</p>
+    <p class="subtitle">משרות פתוחות בכיוון – מחוז מרכז. מתעדכן</p>
   </header>
 
   <main class="container">
-    <!-- הודעת טעינה נתפסת; תוחלף בכרטיסים כשנטען -->
+    <!-- גריד משרות -->
     <section id="jobsGrid" class="jobs-grid" aria-live="polite">
       <div class="loading">טוען משרות…</div>
     </section>
 
+    <!-- שיתוף כללי -->
     <section class="share-site">
       <h2>יש לכם חבר/ה שמחפש/ת עבודה?</h2>
       <p>המליצו על דף המשרות של כיוון – מחוז מרכז:</p>
@@ -66,11 +66,11 @@
           <p><strong>כיוון – מחוז מרכז</strong><br>ההסתדרות 26, פתח תקווה</p>
           <div class="contact-actions">
             <a class="btn-contact" href="tel:036228554">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.62 10.79a15.053 15.053 0 006.59 6.59l2.2-2.2a1 1 0 011.01-.24c1.1.37 2.29.57 3.58.57a1 1 0 011 1V21a1 1 0 01-1 1C10.85 22 2 13.15 2 2a1 1 0 011-1h3.5a1 1 0 011 1c0 1.29.2 2.48.57 3.58a1 1 0 01-.24 1.01l-2.2 2.2z"/></svg>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.62 10.79a15.053 15.053 0 006.59 6.59l2.2-2.2a1 1 0 011.01-.24c1.1.37 2.29.57 3.58.57a1 1 0 011 1V21a1 1 0 01-1 1C10.85 22 2 13.15 2 2a1 1 0 011-1h3.5a1 1 0 011 1c0 1.29.2 2.48.57 3.58a1 1 0 01-.24 1.01ל-2.2 2.2z"/></svg>
               03-6228554
             </a>
             <a class="btn-contact outline" href="mailto:office.pt@m-lemaase.co.il">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V6a2 2 0 00-2-2zm0 3.2l-8 5-8-5V6l8 5 8-5v1.2z"/></svg>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V6a2 2 0 00-2-2zm0 3.2ל-8 5-8-5V6l8 5 8-5v1.2z"/></svg>
               office.pt@m-lemaase.co.il
             </a>
           </div>
@@ -80,6 +80,45 @@
     </div>
     <p>© <span id="year"></span> כיוון – מחוז מרכז</p>
   </footer>
+
+  <!-- מודאל הגשת מועמדות -->
+  <div id="applyModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="applyTitle">
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__dialog">
+      <button class="modal__close" type="button" aria-label="סגור" data-close>&times;</button>
+      <h3 id="applyTitle">הגשת מועמדות</h3>
+      <p class="apply-jobline"><span id="applyJobTitle"></span> · <span id="applyJobId"></span></p>
+
+      <form id="applyForm" novalidate>
+        <input type="hidden" id="fJobId">
+        <input type="hidden" id="fJobTitle">
+
+        <label>שם מלא
+          <input type="text" id="fName" required>
+        </label>
+
+        <label>טלפון
+          <input type="tel" id="fPhone" required>
+        </label>
+
+        <label>דוא"ל (לא חובה)
+          <input type="email" id="fEmail" inputmode="email">
+        </label>
+
+        <label>קורות חיים (PDF / DOC / DOCX, עד 20MB)
+          <input type="file" id="fFile" required
+                 accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+        </label>
+
+        <div class="form-actions">
+          <button type="submit" class="btn" id="sendBtn">שליחה</button>
+          <button type="button" class="btn-outline" data-close>ביטול</button>
+        </div>
+
+        <div id="applyMsg" class="form-msg" aria-live="polite"></div>
+      </form>
+    </div>
+  </div>
 
   <script src="app.js" defer></script>
 </body>
