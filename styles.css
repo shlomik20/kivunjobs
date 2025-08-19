@@ -85,3 +85,17 @@ img{max-width:100%;height:auto}
 a:focus-visible, button:focus-visible, .btn:focus-visible, .btn-wa:focus-visible, .btn-contact:focus-visible, .modal__close:focus-visible{
   outline:3px solid rgba(194,31,99,.6); outline-offset:3px; border-radius:12px;
 }
+/* ---- הגדלת כפתור "שלח/י קו״ח" בלבד ---- */
+.job-card .btn-apply{
+  font-size: 1.08rem;   /* גודל טקסט */
+  font-weight: 800;     /* שיהיה מודגש וברור */
+  line-height: 1.1;
+  padding: 12px 18px;   /* קצת יותר גובה/רוחב */
+}
+
+@media (max-width: 420px){
+  .job-card .btn-apply{
+    font-size: 1.02rem; /* התאמה קלה במובייל קטן */
+    padding: 11px 16px;
+  }
+}
