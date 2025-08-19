@@ -1,32 +1,30 @@
-// ======== הגדרות ========
+// ===== הגדרות =====
 const RECIPIENT_EMAIL = "efratw@m-lemaase.co.il";
 const SITE_URL = "https://shlomik20.github.io/kivunjobs/";
-
 // CSV פומבי ("פרסום לאינטרנט" → CSV)
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQvg671v_gMTRGnQ4hg1lyJvjUT6kgUZrnUWM_f7zZ7pMe-BklVsvLLLpwE9RT3g-6G4WzSiTnF-lEH/pub?gid=0&single=true&output=csv";
-// =========================
 
-// אלמנטים בעמוד
+// ===== אלמנטים =====
 const JOBS_GRID  = document.getElementById("jobsGrid");
 const JOB_COUNT  = document.getElementById("jobCount");
 const YEAR_EL    = document.getElementById("year");
 if (YEAR_EL) YEAR_EL.textContent = new Date().getFullYear();
 
-// אליאסים לשמות כותרות בעברית (גמיש לשינויים קטנים)
+// ===== אליאסים לכותרות =====
 const HEADER_ALIASES = {
   title:  ["כותרת המשרה","כותרת","שם משרה","שם המשרה"],
   desc:   ["תיאור המשרה","תיאור","תיאור תמציתי","תאור","תאור המשרה"],
   req:    ["דרישות המשרה","דרישות","כישורים","כישורים נדרשים","תיאור מלא","התיאור המלא"],
   notes:  ["הערות נוספות","הערות נוספות במידה ויש","הערות"],
-  jobId:  ["מספר משרה","מס' משרה","מס׳ משרה","מספר המשרה","מס משרה"]
+  jobId:  ["מספר משרה","מס' משרה","מס׳ משרה","מספר המשרה","מס משרה"],
+  date:   ["תאריך פרסום","תאריך","תאריך המשרה","תאריך פירסום"]
 };
 
-// ===== CSV Parser קטן ועמיד לציטוטים/פסיקים/שורות חדשות =====
+// ===== CSV Parser =====
 function parseCSV(str){
-  if (str.charCodeAt(0) === 0xFEFF) str = str.slice(1); // הסרת BOM אם קיים
+  if (str.charCodeAt(0) === 0xFEFF) str = str.slice(1); // BOM
   const rows = [];
   let cur = "", row = [], inQuotes = false;
-
   for (let i=0;i<str.length;i++){
     const ch = str[i], next = str[i+1];
     if (inQuotes){
@@ -45,23 +43,14 @@ function parseCSV(str){
   return rows.filter(r => r.some(c => String(c).trim() !== ""));
 }
 
-// נירמול כותרות
-function normalizeHeader(s){
-  return String(s||"")
-    .replace(/[׳’`"]/g,"'")  // איחוד גרשיים
-    .replace(/\s+/g,"")      // בלי רווחים
-    .toLowerCase();
-}
-
+// ===== נירמול כותרות ומיפוי =====
+const normalizeHeader = s => String(s||"").replace(/[׳’`"]/g,"'").replace(/\s+/g,"").toLowerCase();
 function aliasIndex(headers, variants){
   const norm = headers.map(normalizeHeader);
   const vv = variants.map(normalizeHeader);
-  for (let i=0;i<norm.length;i++){
-    if (vv.includes(norm[i])) return i;
-  }
+  for (let i=0;i<norm.length;i++) if (vv.includes(norm[i])) return i;
   return -1;
 }
-
 function mapHeaderIndexes(headers){
   return {
     title: aliasIndex(headers, HEADER_ALIASES.title),
@@ -69,19 +58,44 @@ function mapHeaderIndexes(headers){
     req:   aliasIndex(headers, HEADER_ALIASES.req),
     notes: aliasIndex(headers, HEADER_ALIASES.notes),
     jobId: aliasIndex(headers, HEADER_ALIASES.jobId),
+    date:  aliasIndex(headers, HEADER_ALIASES.date),
   };
 }
 
-// עזרי טקסט
+// ===== עזרי טקסט/תאריכים =====
 const onlyText = s => String(s ?? "").trim();
+const slugId = id => `job-${String(id||"").replace(/[^\w\-]/g,"")}`;
 
-// ===== טעינה =====
+function parseHebDate(s){
+  const t = onlyText(s);
+  if (!t) return null;
+  // פורמטים נפוצים: YYYY-MM-DD, DD/MM/YYYY, DD.MM.YYYY, DD-MM-YY, וכו'
+  const parts = [
+    {re:/^\d{4}-\d{2}-\d{2}$/, fmt:r=>new Date(t)},
+    {re:/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/, fmt:r=>new Date(+r[3], +r[2]-1, +r[1])},
+    {re:/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/, fmt:r=>new Date(+r[3], +r[2]-1, +r[1])},
+    {re:/^(\d{1,2})-(\d{1,2})-(\d{2})$/, fmt:r=>new Date(2000+ +r[3], +r[2]-1, +r[1])},
+    {re:/^(\d{1,2})-(\d{1,2})-(\d{4})$/, fmt:r=>new Date(+r[3], +r[2]-1, +r[1])},
+    {re:/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/, fmt:r=>new Date(2000+ +r[3], +r[1]-1, +r[2])}, // אמריקאי קצר
+  ];
+  for (const p of parts){
+    const m = t.match(p.re);
+    if (m) return p.fmt(m);
+  }
+  const d = new Date(t);
+  return isNaN(d) ? null : d;
+}
+function isNew(dateObj){
+  if (!dateObj) return false;
+  const MS = 24*60*60*1000;
+  return (Date.now() - dateObj.getTime()) <= 7*MS;
+}
+
+// ===== טעינת נתונים =====
 async function loadJobs(){
-  // הודעת טעינה (אם לא קיימת כבר)
   if (!JOBS_GRID.innerHTML.trim()){
     JOBS_GRID.innerHTML = `<div class="loading">טוען משרות…</div>`;
   }
-
   try{
     const res = await fetch(CSV_URL, { cache: "no-store" });
     if (!res.ok) throw new Error("CSV_FETCH_FAILED");
@@ -89,12 +103,10 @@ async function loadJobs(){
     const rows = parseCSV(text);
     if (!rows.length) throw new Error("CSV_EMPTY");
 
-    // כותרות
-    const headers = rows[0].map(h => onlyText(h));
+    const headers = rows[0].map(onlyText);
     const idx = mapHeaderIndexes(headers);
     if (idx.title === -1) throw new Error("MISSING_TITLE_HEADER");
 
-    // שורות נתונים
     const jobs = [];
     for (let i=1;i<rows.length;i++){
       const r = rows[i];
@@ -105,11 +117,12 @@ async function loadJobs(){
       const desc  = idx.desc  !== -1 ? onlyText(r[idx.desc])  : "";
       const req   = idx.req   !== -1 ? onlyText(r[idx.req])   : "";
       const notes = idx.notes !== -1 ? onlyText(r[idx.notes]) : "";
+      const dpub  = idx.date  !== -1 ? parseHebDate(r[idx.date]) : null;
 
-      jobs.push({ title, jobId, desc, req, notes });
+      jobs.push({ title, jobId, desc, req, notes, dpub, isNew: isNew(dpub) });
     }
 
-    // מיון (אם יש מספרי משרה אמיתיים)
+    // מיון: אם יש מזהים אמיתיים – לפי מזהה; אחרת שמור סדר
     const hasRealIds = idx.jobId !== -1 && jobs.every(j => j.jobId);
     if (hasRealIds){
       jobs.sort((a,b) => (b.jobId||"").localeCompare(a.jobId||"", "he"));
@@ -118,14 +131,19 @@ async function loadJobs(){
     if (JOB_COUNT) JOB_COUNT.textContent = String(jobs.length);
     JOBS_GRID.innerHTML = jobs.map(card).join("");
 
+    // אם נכנסנו עם #job-…, גלול והדגש
+    highlightAndScrollToHash();
+
+    window.addEventListener("hashchange", highlightAndScrollToHash);
+
   } catch(err){
     console.error("Load error:", err);
     let hint = `לא הצלחתי לטעון CSV.
-1) ודא שבחרת: קובץ → "פרסום לאינטרנט" → לשונית נכונה → CSV → פרסם.
-2) אם פרסמת לשונית אחרת, עדכן את ה־gid בקישור ה־CSV.
-3) ודא ששורת הכותרות היא הראשונה: "כותרת המשרה, תיאור המשרה, דרישות המשרה, הערות נוספות, מספר משרה".`;
+1) ודא "פרסום לאינטרנט" → לשונית נכונה → CSV.
+2) שה-gid תואם.
+3) ששורת הכותרות היא: "כותרת המשרה, תיאור המשרה, דרישות המשרה, הערות נוספות, מספר משרה, תאריך פרסום".`;
     if (err.message === "MISSING_TITLE_HEADER"){
-      hint = `כותרת המשרה לא זוהתה בכותרות ה-CSV. ודא שאחת מהכותרות היא: ${HEADER_ALIASES.title.join(" / ")}`;
+      hint = `כותרת המשרה לא זוהתה. ודא כותרת כמו: ${HEADER_ALIASES.title.join(" / ")}`;
     }
     JOBS_GRID.innerHTML = `
       <article class="job-card">
@@ -139,6 +157,7 @@ async function loadJobs(){
 
 // ===== רנדר כרטיס =====
 function card(job){
+  const id = slugId(job.jobId);
   const subject = encodeURIComponent(`קורות חיים – משרה ${job.jobId}`);
   const body = encodeURIComponent([
     "שלום,",
@@ -153,14 +172,17 @@ function card(job){
   ].join("\n"));
   const mailto = `mailto:${RECIPIENT_EMAIL}?subject=${subject}&body=${body}`;
 
-  // מיקרו־קופי מדויק לשיתוף בוואטסאפ (#9)
-  const shareTextJob = `מצאתי משרה שנראית לי רלוונטית עבורך במשרות של כיוון: ${job.title}\n${SITE_URL}`;
+  // שיתוף משרה ספציפית (Deep link)
+  const shareTextJob = `מצאתי משרה שנראית לי רלוונטית עבורך במשרות של כיוון: ${job.title}\n${SITE_URL}#${id}`;
   const shareWaJob = `https://wa.me/?text=${encodeURIComponent(shareTextJob)}`;
 
   return `
-    <article class="job-card">
+    <article class="job-card" id="${id}">
       <div class="card-bar">
-        <span class="badge">מס' משרה: ${escapeHtml(job.jobId)}</span>
+        <div>
+          ${job.isNew ? `<span class="tag-new">חדש</span>` : ``}
+          <span class="badge">מס' משרה: ${escapeHtml(job.jobId)}</span>
+        </div>
       </div>
       <div class="card-body">
         <h3 class="job-title">${escapeHtml(job.title)}</h3>
@@ -179,6 +201,18 @@ function card(job){
       </div>
     </article>
   `;
+}
+
+// ===== הדגשת כרטיס מ-hash =====
+function highlightAndScrollToHash(){
+  const h = (location.hash||"").replace(/^#/, "");
+  if (!h) return;
+  const el = document.getElementById(h);
+  if (!el) return;
+  // גלילה והדגשה קצרה
+  el.classList.add("targeted");
+  setTimeout(()=> el.classList.remove("targeted"), 2200);
+  // (scroll-behavior: smooth ב-CSS)
 }
 
 // ===== עזרי HTML =====
