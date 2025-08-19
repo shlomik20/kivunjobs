@@ -69,16 +69,16 @@ const slugId = id => `job-${String(id||"").replace(/[^\w\-]/g,"")}`;
 function parseHebDate(s){
   const t = onlyText(s);
   if (!t) return null;
-  // פורמטים נפוצים: YYYY-MM-DD, DD/MM/YYYY, DD.MM.YYYY, DD-MM-YY, וכו'
-  const parts = [
+  // פורמטים נפוצים: YYYY-MM-DD, DD/MM/YYYY, DD.MM.YYYY, DD-MM-YY/YY, ועוד
+  const patterns = [
     {re:/^\d{4}-\d{2}-\d{2}$/, fmt:r=>new Date(t)},
     {re:/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/, fmt:r=>new Date(+r[3], +r[2]-1, +r[1])},
     {re:/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/, fmt:r=>new Date(+r[3], +r[2]-1, +r[1])},
     {re:/^(\d{1,2})-(\d{1,2})-(\d{2})$/, fmt:r=>new Date(2000+ +r[3], +r[2]-1, +r[1])},
     {re:/^(\d{1,2})-(\d{1,2})-(\d{4})$/, fmt:r=>new Date(+r[3], +r[2]-1, +r[1])},
-    {re:/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/, fmt:r=>new Date(2000+ +r[3], +r[1]-1, +r[2])}, // אמריקאי קצר
+    {re:/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/, fmt:r=>new Date(2000+ +r[3], +r[1]-1, +r[2])}
   ];
-  for (const p of parts){
+  for (const p of patterns){
     const m = t.match(p.re);
     if (m) return p.fmt(m);
   }
@@ -133,7 +133,6 @@ async function loadJobs(){
 
     // אם נכנסנו עם #job-…, גלול והדגש
     highlightAndScrollToHash();
-
     window.addEventListener("hashchange", highlightAndScrollToHash);
 
   } catch(err){
@@ -141,7 +140,7 @@ async function loadJobs(){
     let hint = `לא הצלחתי לטעון CSV.
 1) ודא "פרסום לאינטרנט" → לשונית נכונה → CSV.
 2) שה-gid תואם.
-3) ששורת הכותרות היא: "כותרת המשרה, תיאור המשרה, דרישות המשרה, הערות נוספות, מספר משרה, תאריך פרסום".`;
+3) ששורת הכותרות כוללת: "כותרת המשרה, תיאור המשרה, דרישות המשרה, הערות נוספות, מספר משרה, תאריך פרסום".`;
     if (err.message === "MISSING_TITLE_HEADER"){
       hint = `כותרת המשרה לא זוהתה. ודא כותרת כמו: ${HEADER_ALIASES.title.join(" / ")}`;
     }
@@ -158,7 +157,9 @@ async function loadJobs(){
 // ===== רנדר כרטיס =====
 function card(job){
   const id = slugId(job.jobId);
-  const subject = encodeURIComponent(`קורות חיים – משרה ${job.jobId}`);
+
+  // נושא וגוף מעודכנים (לפי בקשתך)
+  const subject = encodeURIComponent(`מצורף קורות חיים עבור משרה מספר ${job.jobId}`);
   const body = encodeURIComponent([
     "שלום,",
     "",
@@ -166,7 +167,6 @@ function card(job){
     "",
     "שם מלא:",
     "טלפון:",
-    "ניסיון רלוונטי בקצרה:",
     "",
     "תודה!"
   ].join("\n"));
@@ -209,10 +209,8 @@ function highlightAndScrollToHash(){
   if (!h) return;
   const el = document.getElementById(h);
   if (!el) return;
-  // גלילה והדגשה קצרה
   el.classList.add("targeted");
   setTimeout(()=> el.classList.remove("targeted"), 2200);
-  // (scroll-behavior: smooth ב-CSS)
 }
 
 // ===== עזרי HTML =====
