@@ -99,3 +99,30 @@ a:focus-visible, button:focus-visible, .btn:focus-visible, .btn-wa:focus-visible
     padding: 11px 16px;
   }
 }
+/* נועל את הפונט על כל הכפתורים והקישורים המעוצבים */
+button,
+.btn,
+.btn-apply,
+.btn-outline,
+.btn-wa,
+.btn-contact,
+input, select, textarea {
+  font-family: 'Heebo', system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans Hebrew", "Rubik", sans-serif !important;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* שמרנו את הגדלת הכפתור שיצרת, רק מוודאים שהפונט נשאר Heebo */
+.job-card .btn-apply{
+  font-size: 1.08rem;
+  font-weight: 800;   /* אם זה נראה כבד מדי, נסה 700 */
+  line-height: 1.1;
+  padding: 12px 18px;
+}
+
+@media (max-width: 420px){
+  .job-card .btn-apply{
+    font-size: 1.02rem;
+    padding: 11px 16px;
+  }
+}
